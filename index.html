@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewsHub - Агрегатор новостей</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .news-card {
+            transition: all 0.3s ease;
+        }
+        .news-card:hover {
+            transform: translateY(-5px);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .source-btn.active {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .digest-item {
+            animation: fadeInUp 0.5s ease forwards;
+            opacity: 0;
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .digest-item:nth-child(1) { animation-delay: 0.1s; }
+        .digest-item:nth-child(2) { animation-delay: 0.2s; }
+        .digest-item:nth-child(3) { animation-delay: 0.3s; }
+        .digest-item:nth-child(4) { animation-delay: 0.4s; }
+        .digest-item:nth-child(5) { animation-delay: 0.5s; }
+        .digest-item:nth-child(6) { animation-delay: 0.6s; }
+        .digest-item:nth-child(7) { animation-delay: 0.7s; }
+        .digest-item:nth-child(8) { animation-delay: 0.8s; }
+        .digest-number {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen text-white">
+    <!-- Header -->
+    <header class="bg-gray-800/80 backdrop-blur-lg border-b border-gray-700 sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-newspaper text-white"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold gradient-text">NewsHub</h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="showDigest()" class="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-lg hover:shadow-purple-500/25">
+                        <i class="fas fa-bolt"></i>
+                        <span class="hidden sm:inline">Дайджест</span>
+                    </button>
+                    <button onclick="refreshNews()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+                        <i class="fas fa-sync-alt"></i>
+                        <span class="hidden sm:inline">Обновить</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Source Filters -->
+    <div class="container mx-auto px-4 py-6">
+        <div class="flex flex-wrap gap-3 justify-center" id="sourceFilters">
+            <button onclick="filterBySource('all')" class="source-btn active px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors text-sm font-medium" data-source="all">
+                <i class="fas fa-globe mr-2"></i>Все источники
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="container mx-auto px-4 mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-gray-800 rounded-xl p-4 text-center">
+                <div class="text-2xl font-bold text-blue-400" id="totalNews">0</div>
+                <div class="text-gray-400 text-sm">Всего новостей</div>
+            </div>
+            <div class="bg-gray-800 rounded-xl p-4 text-center">
+                <div class="text-2xl font-bold text-green-400" id="totalSources">0</div>
+                <div class="text-gray-400 text-sm">Источников</div>
+            </div>
+            <div class="bg-gray-800 rounded-xl p-4 text-center">
+                <div class="text-2xl font-bold text-purple-400" id="lastUpdate">--:--</div>
+                <div class="text-gray-400 text-sm">Последнее обновление</div>
+            </div>
+            <div class="bg-gray-800 rounded-xl p-4 text-center">
+                <div class="text-2xl font-bold text-orange-400" id="todayNews">0</div>
+                <div class="text-gray-400 text-sm">За сегодня</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="flex justify-center items-center py-20">
+        <div class="text-center">
+            <div class="loader mx-auto mb-4"></div>
+            <p class="text-gray-400">Загружаем свежие новости...</p>
+        </div>
+    </div>
+
+    <!-- News Grid -->
+    <main class="container mx-auto px-4 pb-12">
+        <div id="newsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        </div>
+        
+        <!-- Error Message -->
+        <div id="errorMessage" class="hidden text-center py-20">
+            <i class="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-4"></i>
+            <h3 class="text-xl font-semibold mb-2">Не удалось загрузить новости</h3>
+            <p class="text-gray-400 mb-4">Проверьте подключение к интернету и попробуйте снова</p>
+            <button onclick="refreshNews()" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg">
+                Попробовать снова
+            </button>
+        </div>
+    </main>
+
+    <!-- Digest Modal -->
+    <div id="digestModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeDigest()"></div>
+        <div class="absolute inset-4 md:inset-10 lg:inset-20 bg-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-purple-600 to-pink-600 p-5 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-bolt text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Краткий дайджест</h2>
+                        <p class="text-purple-200 text-sm">Главные новости за последнее время</p>
+                    </div>
+                </div>
+                <button onclick="closeDigest()" class="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-colors">
+                    <i class="fas fa-times text-white text-xl"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Content -->
+            <div class="flex-1 overflow-y-auto p-5" id="digestContent">
+                <div class="text-center py-10">
+                    <div class="loader mx-auto mb-4"></div>
+                    <p class="text-gray-400">Формируем дайджест...</p>
+                </div>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="bg-gray-900 p-4 flex items-center justify-between border-t border-gray-700">
+                <p class="text-gray-400 text-sm">
+                    <i class="fas fa-info-circle mr-2"></i>Топ новостей из всех источников
+                </p>
+                <button onclick="closeDigest()" class="bg-gray-700 hover:bg-gray-600 px-5 py-2 rounded-lg transition-colors">
+                    Закрыть
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 border-t border-gray-700 py-6">
+        <div class="container mx-auto px-4 text-center text-gray-400">
+            <p>NewsHub © 2024 | Агрегатор мировых новостей</p>
+            <p class="text-sm mt-2">Данные получены из открытых RSS-лент ведущих мировых СМИ</p>
+        </div>
+    </footer>
+
+    <script>
+        // Список источников новостей с их RSS-лентами
+        const newsSources = [
+            {
+                name: 'BBC News',
+                icon: 'fab fa-bbc',
+                color: '#BB1919',
+                rss: 'https://feeds.bbci.co.uk/news/world/rss.xml'
+            },
+            {
+                name: 'CNN',
+                icon: 'fas fa-tv',
+                color: '#CC0000',
+                rss: 'http://rss.cnn.com/rss/edition_world.rss'
+            },
+            {
+                name: 'Reuters',
+                icon: 'fas fa-broadcast-tower',
+                color: '#FF8000',
+                rss: 'https://www.reutersagency.com/feed/'
+            },
+            {
+                name: 'The Guardian',
+                icon: 'fas fa-newspaper',
+                color: '#052962',
+                rss: 'https://www.theguardian.com/world/rss'
+            },
+            {
+                name: 'Al Jazeera',
+                icon: 'fas fa-globe-africa',
+                color: '#FA9000',
+                rss: 'https://www.aljazeera.com/xml/rss/all.xml'
+            },
+            {
+                name: 'NPR',
+                icon: 'fas fa-microphone',
+                color: '#5A82B4',
+                rss: 'https://feeds.npr.org/1001/rss.xml'
+            },
+            {
+                name: 'ABC News',
+                icon: 'fas fa-broadcast-tower',
+                color: '#000000',
+                rss: 'https://abcnews.go.com/abcnews/internationalheadlines'
+            },
+            {
+                name: 'The New York Times',
+                icon: 'fas fa-landmark',
+                color: '#1A1A1A',
+                rss: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml'
+            }
+        ];
+
+        let allNews = [];
+        let currentFilter = 'all';
+
+        // Получение новостей через RSS2JSON API
+        async function fetchRSS(source) {
+            const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.rss)}`;
+            
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                
+                if (data.status === 'ok' && data.items) {
+                    return data.items.map(item => ({
+                        title: item.title,
+                        description: stripHtml(item.description).substring(0, 200) + '...',
+                        link: item.link,
+                        pubDate: new Date(item.pubDate),
+                        thumbnail: item.thumbnail || item.enclosure?.link || getPlaceholderImage(source.name),
+                        source: source.name,
+                        sourceColor: source.color,
+                        sourceIcon: source.icon
+                    }));
+                }
+                return [];
+            } catch (error) {
+                console.error(`Error fetching ${source.name}:`, error);
+                return [];
+            }
+        }
+
+        // Удаление HTML-тегов из описания
+        function stripHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || '';
+        }
+
+        // Placeholder изображение
+        function getPlaceholderImage(sourceName) {
+            const colors = ['3b82f6', '8b5cf6', 'ec4899', 'f59e0b', '10b981'];
+            const color = colors[Math.abs(sourceName.charCodeAt(0)) % colors.length];
+            return `https://via.placeholder.com/400x200/${color}/ffffff?text=${encodeURIComponent(sourceName)}`;
+        }
+
+        // Загрузка всех новостей
+        async function loadAllNews() {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('newsGrid').innerHTML = '';
+            document.getElementById('errorMessage').classList.add('hidden');
+
+            try {
+                const promises = newsSources.map(source => fetchRSS(source));
+                const results = await Promise.all(promises);
+                
+                allNews = results.flat().sort((a, b) => b.pubDate - a.pubDate);
+                
+                if (allNews.length === 0) {
+                    document.getElementById('errorMessage').classList.remove('hidden');
+                } else {
+                    renderNews(allNews);
+                    updateStats();
+                    renderSourceFilters();
+                }
+            } catch (error) {
+                console.error('Error loading news:', error);
+                document.getElementById('errorMessage').classList.remove('hidden');
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        // Отрисовка новостей
+        function renderNews(news) {
+            const grid = document.getElementById('newsGrid');
+            grid.innerHTML = news.map(item => `
+                <article class="news-card bg-gray-800 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-blue-500/10">
+                    <div class="relative h-48 overflow-hidden">
+                        <img src="${item.thumbnail}" alt="${item.title}" 
+                             class="w-full h-full object-cover"
+                             onerror="this.src='${getPlaceholderImage(item.source)}'">
+                        <div class="absolute top-3 left-3">
+                            <span class="px-3 py-1 rounded-full text-xs font-medium text-white" 
+                                  style="background-color: ${item.sourceColor}">
+                                <i class="${item.sourceIcon} mr-1"></i>${item.source}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="p-5">
+                        <h3 class="font-semibold text-lg mb-2 line-clamp-2 hover:text-blue-400 transition-colors">
+                            <a href="${item.link}" target="_blank" rel="noopener noreferrer">${item.title}</a>
+                        </h3>
+                        <p class="text-gray-400 text-sm mb-4 line-clamp-3">${item.description}</p>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-500 text-xs">
+                                <i class="far fa-clock mr-1"></i>${formatDate(item.pubDate)}
+                            </span>
+                            <a href="${item.link}" target="_blank" rel="noopener noreferrer"
+                               class="text-blue-400 hover:text-blue-300 text-sm font-medium">
+                                Читать <i class="fas fa-arrow-right ml-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </article>
+            `).join('');
+        }
+
+        // Форматирование даты
+        function formatDate(date) {
+            const now = new Date();
+            const diff = now - date;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+
+            if (minutes < 60) return `${minutes} мин. назад`;
+            if (hours < 24) return `${hours} ч. назад`;
+            if (days < 7) return `${days} дн. назад`;
+            
+            return date.toLocaleDateString('ru-RU', { 
+                day: 'numeric', 
+                month: 'short' 
+            });
+        }
+
+        // Обновление статистики
+        function updateStats() {
+            const uniqueSources = [...new Set(allNews.map(n => n.source))];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayNews = allNews.filter(n => n.pubDate >= today);
+
+            document.getElementById('totalNews').textContent = allNews.length;
+            document.getElementById('totalSources').textContent = uniqueSources.length;
+            document.getElementById('todayNews').textContent = todayNews.length;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('ru-RU', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Отрисовка фильтров источников
+        function renderSourceFilters() {
+            const container = document.getElementById('sourceFilters');
+            const uniqueSources = [...new Set(allNews.map(n => n.source))];
+            
+            const sourceButtons = uniqueSources.map(source => {
+                const sourceData = newsSources.find(s => s.name === source);
+                return `
+                    <button onclick="filterBySource('${source}')" 
+                            class="source-btn px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors text-sm font-medium"
+                            data-source="${source}">
+                        <i class="${sourceData?.icon || 'fas fa-newspaper'} mr-2"></i>${source}
+                    </button>
+                `;
+            }).join('');
+
+            container.innerHTML = `
+                <button onclick="filterBySource('all')" 
+                        class="source-btn ${currentFilter === 'all' ? 'active' : ''} px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors text-sm font-medium" 
+                        data-source="all">
+                    <i class="fas fa-globe mr-2"></i>Все источники
+                </button>
+                ${sourceButtons}
+            `;
+        }
+
+        // Фильтрация по источнику
+        function filterBySource(source) {
+            currentFilter = source;
+            
+            // Обновление активной кнопки
+            document.querySelectorAll('.source-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.source === source) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Фильтрация и отрисовка
+            const filteredNews = source === 'all' 
+                ? allNews 
+                : allNews.filter(n => n.source === source);
+            
+            renderNews(filteredNews);
+        }
+
+        // Обновление новостей
+        function refreshNews() {
+            loadAllNews();
+        }
+
+        // Показать дайджест
+        function showDigest() {
+            const modal = document.getElementById('digestModal');
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            
+            generateDigest();
+        }
+
+        // Закрыть дайджест
+        function closeDigest() {
+            const modal = document.getElementById('digestModal');
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // Генерация дайджеста
+        function generateDigest() {
+            const content = document.getElementById('digestContent');
+            
+            if (allNews.length === 0) {
+                content.innerHTML = `
+                    <div class="text-center py-10">
+                        <i class="fas fa-newspaper text-6xl text-gray-600 mb-4"></i>
+                        <p class="text-gray-400">Новости ещё не загружены. Подождите загрузки или нажмите "Обновить".</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Получаем топ новостей (по одной самой свежей от каждого источника + топ по времени)
+            const sourceMap = new Map();
+            const topNews = [];
+            
+            // Берём самую свежую новость от каждого источника
+            allNews.forEach(news => {
+                if (!sourceMap.has(news.source)) {
+                    sourceMap.set(news.source, news);
+                }
+            });
+            
+            // Формируем массив и сортируем по дате
+            const digestNews = Array.from(sourceMap.values())
+                .sort((a, b) => b.pubDate - a.pubDate)
+                .slice(0, 8);
+
+            // Создаём сводку
+            const today = new Date();
+            const dateStr = today.toLocaleDateString('ru-RU', { 
+                weekday: 'long', 
+                day: 'numeric', 
+                month: 'long',
+                year: 'numeric'
+            });
+
+            content.innerHTML = `
+                <div class="mb-6">
+                    <p class="text-gray-400 text-sm mb-2">
+                        <i class="far fa-calendar-alt mr-2"></i>${dateStr}
+                    </p>
+                    <div class="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-4">
+                        <h3 class="text-lg font-semibold text-blue-400 mb-2">
+                            <i class="fas fa-chart-line mr-2"></i>Обзор
+                        </h3>
+                        <p class="text-gray-300">
+                            Сегодня в ленте <span class="text-white font-semibold">${allNews.length}</span> новостей 
+                            из <span class="text-white font-semibold">${sourceMap.size}</span> источников. 
+                            Ниже представлены главные заголовки от каждого издания.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    ${digestNews.map((news, index) => `
+                        <div class="digest-item flex gap-4 bg-gray-700/50 rounded-xl p-4 hover:bg-gray-700 transition-colors">
+                            <div class="flex-shrink-0">
+                                <div class="digest-number w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                                    ${index + 1}
+                                </div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-medium text-white" 
+                                          style="background-color: ${news.sourceColor}">
+                                        <i class="${news.sourceIcon} mr-1"></i>${news.source}
+                                    </span>
+                                    <span class="text-gray-500 text-xs">
+                                        <i class="far fa-clock mr-1"></i>${formatDate(news.pubDate)}
+                                    </span>
+                                </div>
+                                <h4 class="font-semibold text-white mb-2 line-clamp-2">
+                                    <a href="${news.link}" target="_blank" rel="noopener noreferrer" 
+                                       class="hover:text-blue-400 transition-colors">
+                                        ${news.title}
+                                    </a>
+                                </h4>
+                                <p class="text-gray-400 text-sm line-clamp-2">${news.description}</p>
+                            </div>
+                            <div class="flex-shrink-0 hidden sm:block">
+                                <a href="${news.link}" target="_blank" rel="noopener noreferrer" 
+                                   class="w-10 h-10 bg-blue-600 hover:bg-blue-500 rounded-lg flex items-center justify-center transition-colors">
+                                    <i class="fas fa-external-link-alt text-white"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="mt-6 p-4 bg-gray-700/30 rounded-xl text-center">
+                    <p class="text-gray-400 text-sm">
+                        <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                        Используйте фильтры на главной странице для просмотра новостей конкретного источника
+                    </p>
+                </div>
+            `;
+        }
+
+        // Закрытие модалки по Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDigest();
+            }
+        });
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAllNews();
+            
+            // Автообновление каждые 5 минут
+            setInterval(loadAllNews, 5 * 60 * 1000);
+        });
+    </script>
+</body>
+</html>
